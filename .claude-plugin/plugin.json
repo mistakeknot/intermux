@@ -1,0 +1,19 @@
+{
+  "name": "intermux",
+  "version": "0.1.0",
+  "description": "Agent activity visibility -- tmux monitoring, activity feeds, health detection. Enriches intermute with live context.",
+  "author": { "name": "MK" },
+  "hooks": "./hooks/hooks.json",
+  "skills": ["./skills/status/SKILL.md"],
+  "mcpServers": {
+    "intermux": {
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/launch-mcp.sh",
+      "args": [],
+      "env": {
+        "INTERMUTE_URL": "http://127.0.0.1:7338",
+        "TMUX_SOCKET": "/tmp/tmux-0/default"
+      }
+    }
+  }
+}

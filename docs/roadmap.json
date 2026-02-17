@@ -1,0 +1,15 @@
+{
+  "module_summary": "Intermux surfaces active agent sessions and task progress to support coordination and observability.",
+  "roadmap": {
+    "now": [
+      {"id": "IMUX-N1", "title": "Stabilize session visibility feeds under intermittent tmux/disconnect conditions.", "priority": "P1"}
+    ],
+    "next": [
+      {"id": "IMUX-N2", "title": "Add cross-node metrics export for long-horizon orchestration health.", "priority": "P2"},
+      {"id": "IMUX-N3", "title": "Integrate agent load and queue metrics with interphase readiness checks.", "priority": "P2"},
+      {"id": "IMUX-L1", "title": "Introduce anomaly detection for stalled agents and resource contention.", "priority": "P2"}
+    ],
+    "later": [
+    ]
+  }
+}
