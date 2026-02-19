@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "description": "Agent activity visibility -- tmux monitoring, activity feeds, health detection. Enriches intermute with live context.",
   "author": { "name": "MK" },
-  "hooks": "./hooks/hooks.json",
-  "skills": ["./skills/status/SKILL.md"],
+  "skills": ["./skills/status"],
   "mcpServers": {
     "intermux": {
       "type": "stdio",
