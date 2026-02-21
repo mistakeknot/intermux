@@ -70,7 +70,8 @@ func (w *Watcher) Run(ctx context.Context) {
 func (w *Watcher) scan() {
 	sessions, err := listSessions()
 	if err != nil {
-		// tmux not running is normal
+		// tmux not running is normal, but log for diagnosability
+		log.Printf("intermux: listSessions error: %v", err)
 		return
 	}
 
