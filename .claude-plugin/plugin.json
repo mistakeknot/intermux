@@ -17,5 +17,6 @@
         "INTERMUTE_URL": "http://127.0.0.1:7338"
       }
     }
-  }
+  },
+  "hooks": "./hooks/hooks.json"
 }
