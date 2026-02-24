@@ -21,7 +21,7 @@ type AgentActivity struct {
 	Project      string            `json:"project"`       // parsed: project name (e.g., "clavain", "shadow-work")
 	AgentType    string            `json:"agent_type"`    // parsed: agent type (e.g., "claude", "codex", "dev")
 	AgentNumber  int               `json:"agent_number"`  // parsed: instance number (0 if none)
-	ProjectDir   string            `json:"project_dir"`   // resolved project directory from CWD (e.g., "/root/projects/Interverse/hub/clavain")
+	ProjectDir   string            `json:"project_dir"`   // resolved project directory from CWD (e.g., "/root/projects/Interverse/os/clavain")
 	PID          int               `json:"pid"`           // Claude process PID
 	CWD          string            `json:"cwd"`           // working directory
 	GitBranch    string            `json:"git_branch"`    // current branch

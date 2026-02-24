@@ -362,7 +362,7 @@ func getCWD(pid int) string {
 }
 
 // resolveProjectDir walks up from dir to find the git root directory.
-// This gives the actual project path (e.g., "/root/projects/Interverse/hub/clavain")
+// This gives the actual project path (e.g., "/root/projects/Interverse/os/clavain")
 // regardless of what subdirectory the agent's process is sitting in.
 func resolveProjectDir(dir string) string {
 	if dir == "" {
