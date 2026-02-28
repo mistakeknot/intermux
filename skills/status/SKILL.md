@@ -1,3 +1,7 @@
+---
+description: "Agent Activity Dashboard"
+---
+
 # /intermux:status — Agent Activity Dashboard
 
 <skill-description>Show a live dashboard of all agent tmux sessions with status, activity, and health warnings.</skill-description>
