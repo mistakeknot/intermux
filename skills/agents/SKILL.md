@@ -1,16 +1,13 @@
 ---
-description: "Agent Activity Dashboard"
+name: agents
+description: Show a live dashboard of all agent tmux sessions — status, activity, health warnings. Not for context pressure (use /interpulse:pressure) or code quality (use /intercheck:quality).
 ---
 
-# /intermux:status — Agent Activity Dashboard
-
-<skill-description>Show a live dashboard of all agent tmux sessions with status, activity, and health warnings.</skill-description>
-
-<command-name>status</command-name>
+# /intermux:agents — Agent Activity Dashboard
 
 ## Instructions
 
-When the user invokes `/intermux:status`, show a comprehensive agent activity dashboard.
+When the user invokes `/intermux:agents`, show a comprehensive agent activity dashboard.
 
 ### Steps
 
