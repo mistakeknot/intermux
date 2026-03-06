@@ -1,6 +1,6 @@
 {
   "name": "intermux",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Agent activity visibility -- tmux monitoring, activity feeds, health detection. Enriches intermute with live context.",
   "author": {
     "name": "MK"
