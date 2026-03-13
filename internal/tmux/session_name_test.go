@@ -1,6 +1,8 @@
 package tmux
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -87,6 +89,114 @@ func TestParseSessionName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadKeywordsFromRegistry(t *testing.T) {
+	// Reset keywords before each subtest.
+	resetKeywords := func() {
+		agentKeywords = append([]string{}, defaultKeywords...)
+	}
+
+	t.Run("missing file falls back to defaults", func(t *testing.T) {
+		resetKeywords()
+		LoadKeywordsFromRegistry("/nonexistent/path.yaml")
+		if len(agentKeywords) != len(defaultKeywords) {
+			t.Errorf("expected %d keywords, got %d", len(defaultKeywords), len(agentKeywords))
+		}
+	})
+
+	t.Run("malformed YAML falls back to defaults", func(t *testing.T) {
+		resetKeywords()
+		tmp := filepath.Join(t.TempDir(), "bad.yaml")
+		os.WriteFile(tmp, []byte("not: [valid: yaml: {{"), 0644)
+		LoadKeywordsFromRegistry(tmp)
+		if len(agentKeywords) != len(defaultKeywords) {
+			t.Errorf("expected %d keywords, got %d", len(defaultKeywords), len(agentKeywords))
+		}
+	})
+
+	t.Run("loads CLI agents from registry", func(t *testing.T) {
+		resetKeywords()
+		yaml := `
+agents:
+  grey-area:
+    runtime:
+      mode: cli
+    tags: [orchestration]
+  falling-outside:
+    runtime:
+      mode: cli
+    tags: [orchestration]
+  mistake-not:
+    runtime:
+      mode: cli
+    tags: []
+  fd-architecture:
+    runtime:
+      mode: subagent
+    tags: [review]
+`
+		tmp := filepath.Join(t.TempDir(), "registry.yaml")
+		os.WriteFile(tmp, []byte(yaml), 0644)
+		LoadKeywordsFromRegistry(tmp)
+
+		// Should have 3 new + 4 defaults = 7
+		if len(agentKeywords) != 7 {
+			t.Fatalf("expected 7 keywords, got %d: %v", len(agentKeywords), agentKeywords)
+		}
+
+		// Verify Culture ship names are recognized
+		got := ParseSessionName("iterm-Demarch-grey-area-01")
+		if !got.IsAgent {
+			t.Error("grey-area not recognized as agent")
+		}
+		if got.AgentType != "grey-area" {
+			t.Errorf("AgentType: got %q, want %q", got.AgentType, "grey-area")
+		}
+		if got.Project != "demarch" && got.Project != "Demarch" {
+			t.Errorf("Project: got %q, want Demarch", got.Project)
+		}
+
+		got2 := ParseSessionName("iterm-Demarch-falling-outside-01")
+		if !got2.IsAgent {
+			t.Error("falling-outside not recognized as agent")
+		}
+		if got2.AgentType != "falling-outside" {
+			t.Errorf("AgentType: got %q, want %q", got2.AgentType, "falling-outside")
+		}
+
+		// Subagent-mode agents should NOT be added
+		got3 := ParseSessionName("iterm-Demarch-fd-architecture")
+		if got3.IsAgent {
+			t.Error("fd-architecture (subagent mode) should not be recognized as agent keyword")
+		}
+	})
+
+	t.Run("session-tagged agents are loaded", func(t *testing.T) {
+		resetKeywords()
+		yaml := `
+agents:
+  sleeper-service:
+    runtime:
+      mode: daemon
+    tags: [session]
+`
+		tmp := filepath.Join(t.TempDir(), "registry.yaml")
+		os.WriteFile(tmp, []byte(yaml), 0644)
+		LoadKeywordsFromRegistry(tmp)
+
+		if len(agentKeywords) != 5 { // 1 new + 4 defaults
+			t.Fatalf("expected 5 keywords, got %d", len(agentKeywords))
+		}
+
+		got := ParseSessionName("rio-Demarch-sleeper-service")
+		if !got.IsAgent {
+			t.Error("sleeper-service not recognized as agent")
+		}
+	})
+
+	// Reset for subsequent tests
+	resetKeywords()
 }
 
 func TestIsAgentSession(t *testing.T) {

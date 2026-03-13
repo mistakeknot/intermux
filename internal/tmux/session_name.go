@@ -1,19 +1,104 @@
 package tmux
 
 import (
+	"log/slog"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/mistakeknot/intermux/internal/activity"
+	"gopkg.in/yaml.v3"
 )
 
-// agentKeywords are the known agent type identifiers that appear in session names.
+// defaultKeywords are the built-in agent type identifiers that appear in session names.
 // Order matters — check compound keywords first ("admin-claude" before "claude").
-var agentKeywords = []string{
+var defaultKeywords = []string{
 	"admin-claude",
 	"claude",
 	"codex",
 	"dev",
+}
+
+// agentKeywords is the active keyword list — starts as defaultKeywords,
+// extended by LoadKeywordsFromRegistry if a registry file is found.
+var agentKeywords = append([]string{}, defaultKeywords...)
+
+// registryFile is a minimal representation of fleet-registry.yaml for keyword extraction.
+type registryFile struct {
+	Agents map[string]registryAgent `yaml:"agents"`
+}
+
+type registryAgent struct {
+	Runtime struct {
+		Mode string `yaml:"mode"`
+	} `yaml:"runtime"`
+	Tags []string `yaml:"tags"`
+}
+
+// LoadKeywordsFromRegistry reads agent names from a fleet-registry.yaml file
+// and adds them to the agent keywords list. Only agents with runtime.mode "cli"
+// or tags containing "session" are added. Falls back silently to defaults if
+// the file is missing or malformed.
+func LoadKeywordsFromRegistry(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		slog.Debug("fleet registry not found, using default keywords", "path", path)
+		return
+	}
+
+	var reg registryFile
+	if err := yaml.Unmarshal(data, &reg); err != nil {
+		slog.Warn("fleet registry parse error, using default keywords", "path", path, "err", err)
+		return
+	}
+
+	// Collect agent names that represent interactive sessions.
+	var extra []string
+	for name, agent := range reg.Agents {
+		if agent.Runtime.Mode == "cli" || containsTag(agent.Tags, "session") {
+			// Skip names already in defaults.
+			if !containsKeyword(defaultKeywords, name) {
+				extra = append(extra, name)
+			}
+		}
+	}
+
+	if len(extra) == 0 {
+		return
+	}
+
+	// Sort by segment count descending (compound keywords first), then alphabetically.
+	sort.Slice(extra, func(i, j int) bool {
+		ci := strings.Count(extra[i], "-") + 1
+		cj := strings.Count(extra[j], "-") + 1
+		if ci != cj {
+			return ci > cj
+		}
+		return extra[i] < extra[j]
+	})
+
+	// Prepend extra (compound-first) before defaults for correct scan order.
+	agentKeywords = append(extra, defaultKeywords...)
+	slog.Info("loaded registry keywords", "count", len(extra), "total", len(agentKeywords))
+}
+
+func containsTag(tags []string, target string) bool {
+	for _, t := range tags {
+		if t == target {
+			return true
+		}
+	}
+	return false
+}
+
+func containsKeyword(keywords []string, target string) bool {
+	for _, kw := range keywords {
+		if kw == target {
+			return true
+		}
+	}
+	return false
 }
 
 // ParseSessionName extracts terminal, project, agent type, and instance number
