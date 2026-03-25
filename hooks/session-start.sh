@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Write a mapping file so intermux can correlate tmux sessions with intermute agent IDs.
-set -euo pipefail
+set -uo pipefail
+trap 'exit 0' ERR
 
 INPUT=$(cat)
 SID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || exit 0
