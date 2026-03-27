@@ -146,18 +146,18 @@ agents:
 		}
 
 		// Verify Culture ship names are recognized
-		got := ParseSessionName("iterm-Demarch-grey-area-01")
+		got := ParseSessionName("iterm-Sylveste-grey-area-01")
 		if !got.IsAgent {
 			t.Error("grey-area not recognized as agent")
 		}
 		if got.AgentType != "grey-area" {
 			t.Errorf("AgentType: got %q, want %q", got.AgentType, "grey-area")
 		}
-		if got.Project != "demarch" && got.Project != "Demarch" {
-			t.Errorf("Project: got %q, want Demarch", got.Project)
+		if got.Project != "sylveste" && got.Project != "Sylveste" {
+			t.Errorf("Project: got %q, want Sylveste", got.Project)
 		}
 
-		got2 := ParseSessionName("iterm-Demarch-falling-outside-01")
+		got2 := ParseSessionName("iterm-Sylveste-falling-outside-01")
 		if !got2.IsAgent {
 			t.Error("falling-outside not recognized as agent")
 		}
@@ -166,7 +166,7 @@ agents:
 		}
 
 		// Subagent-mode agents should NOT be added
-		got3 := ParseSessionName("iterm-Demarch-fd-architecture")
+		got3 := ParseSessionName("iterm-Sylveste-fd-architecture")
 		if got3.IsAgent {
 			t.Error("fd-architecture (subagent mode) should not be recognized as agent keyword")
 		}
@@ -189,7 +189,7 @@ agents:
 			t.Fatalf("expected 5 keywords, got %d", len(agentKeywords))
 		}
 
-		got := ParseSessionName("rio-Demarch-sleeper-service")
+		got := ParseSessionName("rio-Sylveste-sleeper-service")
 		if !got.IsAgent {
 			t.Error("sleeper-service not recognized as agent")
 		}
