@@ -49,10 +49,10 @@ func listAgents(store *activity.Store) server.ServerTool {
 				var filtered []activity.AgentActivity
 				for _, a := range agents {
 					if projectFilter != "" &&
-					!strings.Contains(strings.ToLower(a.Project), strings.ToLower(projectFilter)) &&
-					!strings.Contains(strings.ToLower(a.ProjectDir), strings.ToLower(projectFilter)) {
-					continue
-				}
+						!strings.Contains(strings.ToLower(a.Project), strings.ToLower(projectFilter)) &&
+						!strings.Contains(strings.ToLower(a.ProjectDir), strings.ToLower(projectFilter)) {
+						continue
+					}
 					if agentTypeFilter != "" && !strings.EqualFold(a.AgentType, agentTypeFilter) {
 						continue
 					}

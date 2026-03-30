@@ -75,7 +75,7 @@ func (s *Store) PushEvent(ev ActivityEvent) {
 	defer s.mu.Unlock()
 	s.events[s.eventHead] = ev
 	s.eventHead = (s.eventHead + 1) % s.ringSize
-	if s.eventHead == 0 || s.eventFull {
+	if s.eventHead == 0 {
 		s.eventFull = true
 	}
 }

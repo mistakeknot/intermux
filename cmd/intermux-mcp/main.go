@@ -57,7 +57,7 @@ func main() {
 	// MCP server
 	s := server.NewMCPServer(
 		"intermux",
-		"0.1.0",
+		"0.1.5",
 		server.WithToolCapabilities(true),
 	)
 

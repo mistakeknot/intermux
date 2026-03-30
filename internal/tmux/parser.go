@@ -22,7 +22,9 @@ var (
 	fileEditPattern = regexp.MustCompile(`(?:Edit|Write|Read)\s+(/[^\s]+)`)
 
 	// Bead activity patterns.
-	beadPattern = regexp.MustCompile(`(beads-[a-f0-9]+)`)
+	// Bead IDs follow the format: {project}-{4-char alphanumeric}[.N[.N...]]
+	// Examples: Sylveste-a1b2, Demarch-og7m, Sylveste-rsj.1.4
+	beadPattern = regexp.MustCompile(`\b([A-Z][a-z]+-[a-z0-9]{3,5}(?:\.[0-9]+)*)\b`)
 
 	// Git activity patterns.
 	gitCommitPattern = regexp.MustCompile(`(?i)git commit|committed|create mode`)
