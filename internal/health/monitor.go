@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mistakeknot/intermux/internal/activity"
+	"github.com/mistakeknot/intermux/internal/idle"
 )
 
 // Report contains health status for a single agent.
@@ -34,10 +35,14 @@ func DefaultMonitorConfig() MonitorConfig {
 	}
 }
 
+// idleCheckInterval is the health check interval when the server is idle.
+const idleCheckInterval = 5 * time.Minute
+
 // Monitor watches agent health and classifies status.
 type Monitor struct {
-	config MonitorConfig
-	store  *activity.Store
+	config      MonitorConfig
+	store       *activity.Store
+	idleTracker *idle.Tracker
 	// Callback for status changes (e.g., push to intermute)
 	OnStatusChange func(session string, old, new activity.AgentStatus)
 }
@@ -50,19 +55,42 @@ func NewMonitor(config MonitorConfig, store *activity.Store) *Monitor {
 	}
 }
 
+// SetIdleTracker attaches an idle tracker for adaptive tick rates.
+func (m *Monitor) SetIdleTracker(t *idle.Tracker) {
+	m.idleTracker = t
+}
+
 // Run starts the monitor loop. Blocks until context is cancelled.
+// When an idle tracker is attached, backs off to idleCheckInterval when
+// no MCP traffic has been seen.
 func (m *Monitor) Run(ctx context.Context) {
 	log.Printf("intermux: health monitor started (interval=%s)", m.config.Interval)
-	ticker := time.NewTicker(m.config.Interval)
-	defer ticker.Stop()
+
+	activeTicker := time.NewTicker(m.config.Interval)
+	idleTicker := time.NewTicker(idleCheckInterval)
+	defer activeTicker.Stop()
+	defer idleTicker.Stop()
 
 	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("intermux: health monitor stopped")
-			return
-		case <-ticker.C:
-			m.check()
+		if m.idleTracker != nil && m.idleTracker.IsIdle() {
+			select {
+			case <-ctx.Done():
+				log.Printf("intermux: health monitor stopped")
+				return
+			case <-idleTicker.C:
+				m.check()
+			case <-m.idleTracker.WakeCh():
+				m.check()
+				activeTicker.Reset(m.config.Interval)
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				log.Printf("intermux: health monitor stopped")
+				return
+			case <-activeTicker.C:
+				m.check()
+			}
 		}
 	}
 }

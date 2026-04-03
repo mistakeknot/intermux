@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mistakeknot/intermux/internal/activity"
+	"github.com/mistakeknot/intermux/internal/idle"
 )
 
 // WatcherConfig configures the tmux watcher.
@@ -29,10 +30,15 @@ func DefaultConfig() WatcherConfig {
 	}
 }
 
+// IdleInterval is the scan interval used when the server is idle (no MCP traffic).
+// Much longer than the active interval to avoid burning CPU on orphaned processes.
+const IdleInterval = 5 * time.Minute
+
 // Watcher continuously scans tmux sessions for agent activity.
 type Watcher struct {
 	config       WatcherConfig
 	store        *activity.Store
+	idleTracker  *idle.Tracker
 	lastContent  map[string]string    // session -> last pane content hash
 	lastChangeAt map[string]time.Time // session -> last content change time
 }
@@ -47,22 +53,51 @@ func NewWatcher(config WatcherConfig, store *activity.Store) *Watcher {
 	}
 }
 
+// SetIdleTracker attaches an idle tracker for adaptive tick rates.
+func (w *Watcher) SetIdleTracker(t *idle.Tracker) {
+	w.idleTracker = t
+}
+
 // Run starts the watcher loop. Blocks until context is cancelled.
+// When an idle tracker is attached, the watcher backs off to IdleInterval
+// when no MCP traffic has been seen, and resumes the normal interval
+// immediately when a request arrives.
 func (w *Watcher) Run(ctx context.Context) {
-	log.Printf("intermux: tmux watcher started (interval=%s, match=%v)", w.config.Interval, w.config.SessionMatch)
-	ticker := time.NewTicker(w.config.Interval)
-	defer ticker.Stop()
+	log.Printf("intermux: tmux watcher started (interval=%s, idle_interval=%s, match=%v)",
+		w.config.Interval, IdleInterval, w.config.SessionMatch)
+
+	activeTicker := time.NewTicker(w.config.Interval)
+	idleTicker := time.NewTicker(IdleInterval)
+	defer activeTicker.Stop()
+	defer idleTicker.Stop()
 
 	// Initial scan
 	w.scan()
 
 	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("intermux: tmux watcher stopped")
-			return
-		case <-ticker.C:
-			w.scan()
+		if w.idleTracker != nil && w.idleTracker.IsIdle() {
+			// Idle mode: long interval, but wake immediately on MCP traffic
+			select {
+			case <-ctx.Done():
+				log.Printf("intermux: tmux watcher stopped")
+				return
+			case <-idleTicker.C:
+				w.scan()
+			case <-w.idleTracker.WakeCh():
+				log.Printf("intermux: tmux watcher woke from idle")
+				w.scan()
+				// Reset active ticker so the next tick is a full interval away
+				activeTicker.Reset(w.config.Interval)
+			}
+		} else {
+			// Active mode: normal interval
+			select {
+			case <-ctx.Done():
+				log.Printf("intermux: tmux watcher stopped")
+				return
+			case <-activeTicker.C:
+				w.scan()
+			}
 		}
 	}
 }

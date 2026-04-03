@@ -14,6 +14,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/mistakeknot/intermux/internal/activity"
 	"github.com/mistakeknot/intermux/internal/health"
+	"github.com/mistakeknot/intermux/internal/idle"
 	"github.com/mistakeknot/intermux/internal/push"
 	"github.com/mistakeknot/intermux/internal/tmux"
 	"github.com/mistakeknot/intermux/internal/tools"
@@ -30,6 +31,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Idle tracker — background goroutines back off when no MCP traffic for 60s.
+	// This prevents orphaned intermux-mcp processes from burning CPU indefinitely.
+	idleTracker := idle.NewTracker(60 * time.Second)
+
 	// Configure tmux socket path (for cross-user access, e.g. claude-user → root's tmux)
 	if sp := os.Getenv("TMUX_SOCKET"); sp != "" {
 		tmux.SetSocketPath(sp)
@@ -39,20 +44,23 @@ func main() {
 	// Start tmux watcher goroutine
 	watcherConfig := tmux.DefaultConfig()
 	watcher := tmux.NewWatcher(watcherConfig, store)
+	watcher.SetIdleTracker(idleTracker)
 	go watcher.Run(ctx)
 
 	// Start health monitor goroutine
 	monitorConfig := health.DefaultMonitorConfig()
 	monitor := health.NewMonitor(monitorConfig, store)
+	monitor.SetIdleTracker(idleTracker)
 	go monitor.Run(ctx)
 
 	// Start metadata pusher goroutine (pushes to intermute)
 	intermuteURL := os.Getenv("INTERMUTE_URL")
 	pusher := push.NewPusher(store, intermuteURL, 30*time.Second)
+	pusher.SetIdleTracker(idleTracker)
 	go pusher.Run(ctx)
 
 	// Start mapping file watcher (checks for new correlation files)
-	go watchMappings(ctx, store)
+	go watchMappings(ctx, store, idleTracker)
 
 	// MCP server
 	s := server.NewMCPServer(
@@ -61,7 +69,7 @@ func main() {
 		server.WithToolCapabilities(true),
 	)
 
-	tools.RegisterAll(s, store, monitor)
+	tools.RegisterAll(s, store, monitor, idleTracker)
 
 	// Handle graceful shutdown
 	go func() {
@@ -105,15 +113,34 @@ func loadMappings(store *activity.Store) {
 }
 
 // watchMappings periodically checks for new mapping files.
-func watchMappings(ctx context.Context, store *activity.Store) {
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
+// When idle, backs off to 5-minute intervals.
+func watchMappings(ctx context.Context, store *activity.Store, tracker *idle.Tracker) {
+	const activeInterval = 15 * time.Second
+	const idleInterval = 5 * time.Minute
+
+	activeTicker := time.NewTicker(activeInterval)
+	idleTicker := time.NewTicker(idleInterval)
+	defer activeTicker.Stop()
+	defer idleTicker.Stop()
+
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			loadMappings(store)
+		if tracker != nil && tracker.IsIdle() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-idleTicker.C:
+				loadMappings(store)
+			case <-tracker.WakeCh():
+				loadMappings(store)
+				activeTicker.Reset(activeInterval)
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return
+			case <-activeTicker.C:
+				loadMappings(store)
+			}
 		}
 	}
 }

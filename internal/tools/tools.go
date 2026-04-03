@@ -12,12 +12,15 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/mistakeknot/intermux/internal/activity"
 	"github.com/mistakeknot/intermux/internal/health"
+	"github.com/mistakeknot/intermux/internal/idle"
 	"github.com/mistakeknot/intermux/internal/tmux"
 )
 
 // RegisterAll registers all intermux MCP tools with the server.
-func RegisterAll(s *server.MCPServer, store *activity.Store, monitor *health.Monitor) {
-	s.AddTools(
+// If tracker is non-nil, every tool call touches it to keep background
+// goroutines running at normal rates while the server is in active use.
+func RegisterAll(s *server.MCPServer, store *activity.Store, monitor *health.Monitor, tracker *idle.Tracker) {
+	allTools := []server.ServerTool{
 		listAgents(store),
 		peekAgent(store),
 		activityFeed(store),
@@ -25,7 +28,26 @@ func RegisterAll(s *server.MCPServer, store *activity.Store, monitor *health.Mon
 		agentHealth(monitor),
 		whoIsEditing(store),
 		sessionInfo(),
-	)
+	}
+
+	if tracker != nil {
+		for i, st := range allTools {
+			allTools[i] = wrapWithTouch(st, tracker)
+		}
+	}
+
+	s.AddTools(allTools...)
+}
+
+// wrapWithTouch wraps a tool handler so that each invocation touches the
+// idle tracker, keeping background goroutines at active rates.
+func wrapWithTouch(st server.ServerTool, tracker *idle.Tracker) server.ServerTool {
+	original := st.Handler
+	st.Handler = func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		tracker.Touch()
+		return original(ctx, req)
+	}
+	return st
 }
 
 func listAgents(store *activity.Store) server.ServerTool {

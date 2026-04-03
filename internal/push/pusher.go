@@ -10,14 +10,19 @@ import (
 	"time"
 
 	"github.com/mistakeknot/intermux/internal/activity"
+	"github.com/mistakeknot/intermux/internal/idle"
 )
+
+// idlePushInterval is the push interval when the server is idle.
+const idlePushInterval = 5 * time.Minute
 
 // Pusher periodically pushes agent metadata to intermute.
 type Pusher struct {
-	store      *activity.Store
-	baseURL    string
-	interval   time.Duration
-	httpClient *http.Client
+	store       *activity.Store
+	baseURL     string
+	interval    time.Duration
+	idleTracker *idle.Tracker
+	httpClient  *http.Client
 }
 
 // NewPusher creates a metadata pusher.
@@ -35,23 +40,46 @@ func NewPusher(store *activity.Store, baseURL string, interval time.Duration) *P
 	}
 }
 
+// SetIdleTracker attaches an idle tracker for adaptive tick rates.
+func (p *Pusher) SetIdleTracker(t *idle.Tracker) {
+	p.idleTracker = t
+}
+
 // Run starts the push loop. Blocks until context is cancelled.
+// When an idle tracker is attached, backs off to idlePushInterval when
+// no MCP traffic has been seen.
 func (p *Pusher) Run(ctx context.Context) {
 	if p.baseURL == "" {
 		log.Printf("intermux: metadata push disabled (no INTERMUTE_URL)")
 		return
 	}
 	log.Printf("intermux: metadata pusher started (url=%s, interval=%s)", p.baseURL, p.interval)
-	ticker := time.NewTicker(p.interval)
-	defer ticker.Stop()
+
+	activeTicker := time.NewTicker(p.interval)
+	idleTicker := time.NewTicker(idlePushInterval)
+	defer activeTicker.Stop()
+	defer idleTicker.Stop()
 
 	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("intermux: metadata pusher stopped")
-			return
-		case <-ticker.C:
-			p.push(ctx)
+		if p.idleTracker != nil && p.idleTracker.IsIdle() {
+			select {
+			case <-ctx.Done():
+				log.Printf("intermux: metadata pusher stopped")
+				return
+			case <-idleTicker.C:
+				p.push(ctx)
+			case <-p.idleTracker.WakeCh():
+				p.push(ctx)
+				activeTicker.Reset(p.interval)
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				log.Printf("intermux: metadata pusher stopped")
+				return
+			case <-activeTicker.C:
+				p.push(ctx)
+			}
 		}
 	}
 }
