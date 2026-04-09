@@ -4,24 +4,6 @@
 1. [`PHILOSOPHY.md`](../../PHILOSOPHY.md) — direction for ideation and planning decisions.
 2. `CLAUDE.md` — implementation details, architecture, testing, and release workflow.
 
-## Philosophy Alignment Protocol
-Review [`PHILOSOPHY.md`](../../PHILOSOPHY.md) during:
-- Intake/scoping
-- Brainstorming
-- Planning
-- Execution kickoff
-- Review/gates
-- Handoff/retrospective
-
-For brainstorming/planning outputs, add two short lines:
-- **Alignment:** one sentence on how the proposal supports the module's purpose within Sylveste's philosophy.
-- **Conflict/Risk:** one sentence on any tension with philosophy (or 'none').
-
-If a high-value change conflicts with philosophy, either:
-- adjust the plan to align, or
-- create follow-up work to update `PHILOSOPHY.md` explicitly.
-
-
 ## What This Is
 
 Intermux is a persistent Go MCP server that gives agents visibility into what other agents are doing. It continuously monitors tmux sessions, detects agent status, and enriches intermute with live activity metadata.
