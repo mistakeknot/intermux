@@ -15,6 +15,7 @@ import (
 	"github.com/mistakeknot/intermux/internal/activity"
 	"github.com/mistakeknot/intermux/internal/health"
 	"github.com/mistakeknot/intermux/internal/idle"
+	"github.com/mistakeknot/intermux/internal/parent"
 	"github.com/mistakeknot/intermux/internal/push"
 	"github.com/mistakeknot/intermux/internal/tmux"
 	"github.com/mistakeknot/intermux/internal/tools"
@@ -61,6 +62,16 @@ func main() {
 
 	// Start mapping file watcher (checks for new correlation files)
 	go watchMappings(ctx, store, idleTracker)
+
+	// Parent-process watchdog — exits when our parent dies.
+	// Backstops stdin-EOF detection in mcp-go: if the parent (Claude Code)
+	// crashes or is killed without closing the stdin pipe, this catches it.
+	// Closing stdin makes ServeStdio's read loop hit EOF and return cleanly.
+	go parent.Watch(ctx, 30*time.Second, func() {
+		log.Printf("intermux: parent process died, shutting down")
+		cancel()
+		_ = os.Stdin.Close()
+	})
 
 	// MCP server
 	s := server.NewMCPServer(
