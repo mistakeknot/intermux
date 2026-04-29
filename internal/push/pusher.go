@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mistakeknot/intermux/internal/activity"
@@ -90,23 +91,81 @@ func (p *Pusher) push(ctx context.Context) {
 		if agent.AgentID == "" {
 			continue // no intermute correlation yet
 		}
-		meta := map[string]string{
-			"tmux_session":    agent.TmuxSession,
-			"cwd":             agent.CWD,
-			"git_branch":      agent.GitBranch,
-			"status":          string(agent.Status),
-			"last_activity":   agent.LastOutput,
-			"last_activity_at": agent.LastSeen.Format(time.RFC3339),
-		}
-		if len(agent.ActiveBeads) > 0 {
-			beadsJSON, _ := json.Marshal(agent.ActiveBeads)
-			meta["active_beads"] = string(beadsJSON)
-		}
+		meta := buildMetadata(agent)
 
 		if err := p.patchMetadata(ctx, agent.AgentID, meta); err != nil {
 			log.Printf("intermux: push metadata for %s: %v", agent.AgentID, err)
 		}
 	}
+}
+
+func buildMetadata(agent activity.AgentActivity) map[string]string {
+	meta := map[string]string{
+		"tmux_session":     agent.TmuxSession,
+		"agent_kind":       agent.AgentType,
+		"repo":             agent.ProjectDir,
+		"cwd":              agent.CWD,
+		"git_branch":       agent.GitBranch,
+		"status":           string(agent.Status),
+		"last_activity":    agent.LastOutput,
+		"last_activity_at": agent.LastSeen.Format(time.RFC3339),
+		"last_seen":        agent.LastSeen.Format(time.RFC3339),
+		"active_beads":     stringSliceJSON(agent.ActiveBeads),
+		"files_touched":    stringSliceJSON(agent.FilesTouched),
+	}
+	if agent.Project != "" {
+		meta["project"] = agent.Project
+	}
+
+	activeBeadID, confidence := resolveActiveBead(agent)
+	meta["active_bead_id"] = activeBeadID
+	meta["thread_id"] = activeBeadID
+	if confidence != "" {
+		meta["active_bead_confidence"] = confidence
+	}
+	meta["active_bead_candidates"] = "[]"
+	if activeBeadID == "" && len(agent.ActiveBeads) > 1 {
+		meta["active_bead_candidates"] = stringSliceJSON(agent.ActiveBeads)
+	}
+
+	for key, value := range agent.Metadata {
+		if _, exists := meta[key]; !exists {
+			meta[key] = value
+		}
+	}
+
+	return meta
+}
+
+func stringSliceJSON(values []string) string {
+	if values == nil {
+		values = []string{}
+	}
+	data, _ := json.Marshal(values)
+	return string(data)
+}
+
+func resolveActiveBead(agent activity.AgentActivity) (string, string) {
+	if reported := strings.TrimSpace(agent.Metadata["active_bead_id"]); reported != "" {
+		confidence := strings.TrimSpace(agent.Metadata["active_bead_confidence"])
+		if confidence == "" {
+			confidence = "reported"
+		}
+		return reported, confidence
+	}
+
+	if agent.ActiveBeadID != "" {
+		confidence := agent.ActiveBeadConfidence
+		if confidence == "" {
+			confidence = "observed"
+		}
+		return agent.ActiveBeadID, confidence
+	}
+
+	if len(agent.ActiveBeads) == 1 {
+		return agent.ActiveBeads[0], "observed"
+	}
+	return "", "unknown"
 }
 
 func (p *Pusher) patchMetadata(ctx context.Context, agentID string, meta map[string]string) error {

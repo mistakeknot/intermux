@@ -110,15 +110,29 @@ func loadMappings(store *activity.Store) {
 			continue
 		}
 		var mapping struct {
-			SessionID   string `json:"session_id"`
-			TmuxSession string `json:"tmux_session"`
-			AgentID     string `json:"agent_id"`
+			SessionID            string `json:"session_id"`
+			TmuxSession          string `json:"tmux_session"`
+			AgentID              string `json:"agent_id"`
+			ActiveBeadID         string `json:"active_bead_id"`
+			ActiveBeadConfidence string `json:"active_bead_confidence"`
 		}
 		if err := json.Unmarshal(data, &mapping); err != nil {
 			continue
 		}
-		if mapping.TmuxSession != "" && mapping.AgentID != "" {
-			store.SetAgentCorrelation(mapping.TmuxSession, mapping.AgentID)
+		if mapping.TmuxSession != "" {
+			if mapping.AgentID != "" {
+				store.SetAgentCorrelation(mapping.TmuxSession, mapping.AgentID)
+			}
+			metadata := map[string]string{}
+			if mapping.ActiveBeadID != "" {
+				metadata["active_bead_id"] = mapping.ActiveBeadID
+				if mapping.ActiveBeadConfidence != "" {
+					metadata["active_bead_confidence"] = mapping.ActiveBeadConfidence
+				} else {
+					metadata["active_bead_confidence"] = "reported"
+				}
+			}
+			store.SetAgentMetadata(mapping.TmuxSession, metadata)
 		}
 	}
 }

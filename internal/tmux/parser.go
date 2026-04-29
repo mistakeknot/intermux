@@ -7,6 +7,8 @@ import (
 	"github.com/mistakeknot/intermux/internal/activity"
 )
 
+const beadIDExpr = `[A-Za-z][A-Za-z0-9_-]*-[A-Za-z0-9]{3,5}(?:\.[0-9]+)*`
+
 var (
 	// Error patterns that suggest the agent is in trouble.
 	errorPatterns = []*regexp.Regexp{
@@ -22,9 +24,14 @@ var (
 	fileEditPattern = regexp.MustCompile(`(?:Edit|Write|Read)\s+(/[^\s]+)`)
 
 	// Bead activity patterns.
-	// Bead IDs follow the format: {project}-{4-char alphanumeric}[.N[.N...]]
-	// Examples: Sylveste-a1b2, Demarch-og7m, Sylveste-rsj.1.4
-	beadPattern = regexp.MustCompile(`\b([A-Z][a-z]+-[a-z0-9]{3,5}(?:\.[0-9]+)*)\b`)
+	// Bead IDs follow the format: {project}-{3-5 char alphanumeric}[.N[.N...]].
+	// Examples: sylveste-kgfi, MediumSetting-ni9, dtla-vjp.5, Sylveste-rsj.1.4.
+	beadPattern           = regexp.MustCompile(`\b(` + beadIDExpr + `)\b`)
+	bdCommandIDPattern    = regexp.MustCompile(`\bbd\s+(?:show|close|update|note|reopen|claim|start|done)\s+(` + beadIDExpr + `)\b`)
+	bdDepCommandPattern   = regexp.MustCompile(`\bbd\s+dep\b`)
+	beadReferencePattern  = regexp.MustCompile(`(?i)\bbeads?(?:\s+(?:id|ids))?\s*[:=#]\s*(` + beadIDExpr + `)\b`)
+	issueReferencePattern = regexp.MustCompile(`(?i)\bissues?(?:\s+(?:id|ids))?\s*[:=#]\s*(` + beadIDExpr + `)\b`)
+	beadStatusLinePattern = regexp.MustCompile(`^\s*[○◐●✓↳↑←]\s+`)
 
 	// Git activity patterns.
 	gitCommitPattern = regexp.MustCompile(`(?i)git commit|committed|create mode`)
@@ -139,19 +146,69 @@ func ParsePaneContent(content, sessionName string) ParsedContent {
 		}
 	}
 
-	// Extract active beads
+	// Extract active beads from explicit Beads context. Avoid treating generic
+	// hyphenated shell terms (for example git-push) as task IDs.
 	beadSeen := map[string]bool{}
 	for _, line := range lines {
-		matches := beadPattern.FindAllStringSubmatch(line, -1)
-		for _, m := range matches {
-			if !beadSeen[m[1]] {
-				beadSeen[m[1]] = true
-				result.ActiveBeads = append(result.ActiveBeads, m[1])
+		for _, id := range extractBeadIDs(line) {
+			if !beadSeen[id] {
+				beadSeen[id] = true
+				result.ActiveBeads = append(result.ActiveBeads, id)
 			}
 		}
 	}
 
 	return result
+}
+
+func extractBeadIDs(line string) []string {
+	var ids []string
+	for _, m := range bdCommandIDPattern.FindAllStringSubmatch(line, -1) {
+		ids = append(ids, m[1])
+	}
+	if bdDepCommandPattern.MatchString(line) {
+		ids = append(ids, beadMatches(line)...)
+	}
+	if beadStatusLineHasBeadShape(line) {
+		ids = append(ids, beadMatches(line)...)
+	}
+
+	for _, m := range beadReferencePattern.FindAllStringSubmatch(line, -1) {
+		ids = append(ids, m[1])
+	}
+	for _, m := range issueReferencePattern.FindAllStringSubmatch(line, -1) {
+		ids = append(ids, m[1])
+	}
+	return uniqueStrings(ids)
+}
+
+func beadStatusLineHasBeadShape(line string) bool {
+	if !beadStatusLinePattern.MatchString(line) {
+		return false
+	}
+	lower := strings.ToLower(line)
+	return strings.Contains(line, " · ") || strings.Contains(line, " — ") || strings.Contains(lower, "issue:")
+}
+
+func beadMatches(line string) []string {
+	var ids []string
+	for _, m := range beadPattern.FindAllStringSubmatch(line, -1) {
+		ids = append(ids, m[1])
+	}
+	return uniqueStrings(ids)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 // DetectEventType returns the type of activity seen in a pane content change.

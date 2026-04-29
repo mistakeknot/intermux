@@ -15,32 +15,35 @@ const (
 
 // AgentActivity represents the observed state of a single agent session.
 type AgentActivity struct {
-	AgentID      string            `json:"agent_id"`      // intermute agent ID (if known)
-	TmuxSession  string            `json:"tmux_session"`  // tmux session name
-	Terminal     string            `json:"terminal"`      // parsed: terminal app (e.g., "warp", "iterm", "ghostty")
-	Project      string            `json:"project"`       // parsed: project name (e.g., "clavain", "shadow-work")
-	AgentType    string            `json:"agent_type"`    // parsed: agent type (e.g., "claude", "codex", "dev")
-	AgentNumber  int               `json:"agent_number"`  // parsed: instance number (0 if none)
-	ProjectDir   string            `json:"project_dir"`   // resolved project directory from CWD (e.g., "/root/projects/Interverse/os/clavain")
-	PID          int               `json:"pid"`           // Claude process PID
-	CWD          string            `json:"cwd"`           // working directory
-	GitBranch    string            `json:"git_branch"`    // current branch
-	Status       AgentStatus       `json:"status"`        // active, idle, stuck, crashed, unknown
-	LastOutput   string            `json:"last_output"`   // last meaningful line from pane
-	ActiveBeads  []string          `json:"active_beads"`  // bead IDs (from pane content)
-	FilesTouched []string          `json:"files_touched"` // recent files (from pane content)
-	Metadata     map[string]string `json:"metadata"`      // arbitrary key-value pairs
-	LastSeen     time.Time         `json:"last_seen"`     // last time we saw activity
-	UpdatedAt    time.Time         `json:"updated_at"`    // last time this record was updated
+	AgentID              string            `json:"agent_id"`                         // intermute agent ID (if known)
+	TmuxSession          string            `json:"tmux_session"`                     // tmux session name
+	Terminal             string            `json:"terminal"`                         // parsed: terminal app (e.g., "warp", "iterm", "ghostty")
+	Project              string            `json:"project"`                          // parsed: project name (e.g., "clavain", "shadow-work")
+	AgentType            string            `json:"agent_type"`                       // parsed: agent type (e.g., "claude", "codex", "dev")
+	AgentNumber          int               `json:"agent_number"`                     // parsed: instance number (0 if none)
+	ProjectDir           string            `json:"project_dir"`                      // resolved project directory from CWD (e.g., "/root/projects/Interverse/os/clavain")
+	PID                  int               `json:"pid"`                              // Claude process PID
+	CWD                  string            `json:"cwd"`                              // working directory
+	GitBranch            string            `json:"git_branch"`                       // current branch
+	Status               AgentStatus       `json:"status"`                           // active, idle, stuck, crashed, unknown
+	LastOutput           string            `json:"last_output"`                      // last meaningful line from pane
+	ActiveBeadID         string            `json:"active_bead_id,omitempty"`         // current best bead join key when confidence is sufficient
+	ActiveBeadConfidence string            `json:"active_bead_confidence,omitempty"` // reported, observed, or unknown in v0
+	ActiveBeads          []string          `json:"active_beads"`                     // candidate bead IDs (from pane content)
+	FilesTouched         []string          `json:"files_touched"`                    // recent files (from pane content)
+	Metadata             map[string]string `json:"metadata"`                         // arbitrary key-value pairs
+	LastSeen             time.Time         `json:"last_seen"`                        // last time we saw activity
+	UpdatedAt            time.Time         `json:"updated_at"`                       // last time this record was updated
 }
 
 // ParsedSessionName holds the components extracted from a tmux session name.
 // Convention: {terminal}-{project}-{agent}-{optional_number}
 // Examples:
-//   "warp-clavain-claude-1"      → {warp, clavain, claude, 1}
-//   "ghostty-shadow-work-codex"  → {ghostty, shadow-work, codex, 0}
-//   "iterm-agent-fortress-claude" → {iterm, agent-fortress, claude, 0}
-//   "main"                       → {main, "", "", 0}
+//
+//	"warp-clavain-claude-1"      → {warp, clavain, claude, 1}
+//	"ghostty-shadow-work-codex"  → {ghostty, shadow-work, codex, 0}
+//	"iterm-agent-fortress-claude" → {iterm, agent-fortress, claude, 0}
+//	"main"                       → {main, "", "", 0}
 type ParsedSessionName struct {
 	Terminal    string
 	Project     string

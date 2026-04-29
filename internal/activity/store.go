@@ -149,3 +149,19 @@ func (s *Store) SetAgentCorrelation(tmuxSession, agentID string) {
 		a.AgentID = agentID
 	}
 }
+
+// SetAgentMetadata merges metadata fields for a tmux session.
+func (s *Store) SetAgentMetadata(tmuxSession string, metadata map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.agents[tmuxSession]
+	if !ok || len(metadata) == 0 {
+		return
+	}
+	if a.Metadata == nil {
+		a.Metadata = make(map[string]string, len(metadata))
+	}
+	for key, value := range metadata {
+		a.Metadata[key] = value
+	}
+}

@@ -203,31 +203,62 @@ func (w *Watcher) scanSession(sess sessionInfo) {
 	// Parse session name for structured metadata
 	parsedName := ParseSessionName(sess.Name)
 
+	activeBeadID, activeBeadConfidence := observedBeadPresence(parsed.ActiveBeads)
+
 	// Build activity record
 	act := activity.AgentActivity{
-		TmuxSession:  sess.Name,
-		Terminal:     parsedName.Terminal,
-		Project:      parsedName.Project,
-		AgentType:    parsedName.AgentType,
-		AgentNumber:  parsedName.AgentNumber,
-		ProjectDir:   projectDir,
-		PID:          pid,
-		CWD:          cwd,
-		GitBranch:    branch,
-		Status:       status,
-		LastOutput:   parsed.LastOutput,
-		ActiveBeads:  parsed.ActiveBeads,
-		FilesTouched: parsed.FilesTouched,
-		LastSeen:     time.Now(),
+		TmuxSession:          sess.Name,
+		Terminal:             parsedName.Terminal,
+		Project:              parsedName.Project,
+		AgentType:            parsedName.AgentType,
+		AgentNumber:          parsedName.AgentNumber,
+		ProjectDir:           projectDir,
+		PID:                  pid,
+		CWD:                  cwd,
+		GitBranch:            branch,
+		Status:               status,
+		LastOutput:           parsed.LastOutput,
+		ActiveBeadID:         activeBeadID,
+		ActiveBeadConfidence: activeBeadConfidence,
+		ActiveBeads:          parsed.ActiveBeads,
+		FilesTouched:         parsed.FilesTouched,
+		LastSeen:             time.Now(),
 	}
 
-	// Preserve existing agent ID correlation
+	// Preserve existing agent ID correlation and explicit reported metadata.
 	existing := w.store.Get(sess.Name)
-	if existing != nil && existing.AgentID != "" {
-		act.AgentID = existing.AgentID
+	if existing != nil {
+		if existing.AgentID != "" {
+			act.AgentID = existing.AgentID
+		}
+		if len(existing.Metadata) > 0 {
+			act.Metadata = cloneMetadata(existing.Metadata)
+			if reported := strings.TrimSpace(existing.Metadata["active_bead_id"]); reported != "" {
+				act.ActiveBeadID = reported
+				act.ActiveBeadConfidence = strings.TrimSpace(existing.Metadata["active_bead_confidence"])
+				if act.ActiveBeadConfidence == "" {
+					act.ActiveBeadConfidence = "reported"
+				}
+			}
+		}
 	}
 
 	w.store.Update(sess.Name, act)
+}
+
+func cloneMetadata(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func observedBeadPresence(activeBeads []string) (string, string) {
+	if len(activeBeads) == 1 {
+		return activeBeads[0], "observed"
+	}
+	return "", "unknown"
 }
 
 // --- tmux socket configuration ---
