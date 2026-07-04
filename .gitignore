@@ -1,2 +1,5 @@
 bin/intermux-mcp
 __pycache__/
+.clavain/**/*.db-shm
+.clavain/**/*.db-wal
+.clavain/intercore.db*
