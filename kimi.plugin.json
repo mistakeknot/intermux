@@ -1,0 +1,26 @@
+{
+  "name": "intermux",
+  "version": "0.1.8",
+  "description": "Agent activity visibility -- tmux monitoring, activity feeds, health detection. Enriches intermute with live context.",
+  "author": "MK",
+  "interface": {
+    "displayName": "intermux",
+    "shortDescription": "Agent activity visibility -- tmux monitoring, activity feeds, health detection. Enriches intermute with live context."
+  },
+  "skills": "./skills/",
+  "mcpServers": {
+    "intermux": {
+      "command": "./bin/launch-mcp.sh",
+      "env": {
+        "INTERMUTE_URL": "http://127.0.0.1:7338"
+      }
+    }
+  },
+  "hooks": [
+    {
+      "event": "SessionStart",
+      "matcher": "startup|resume",
+      "command": "${KIMI_PLUGIN_ROOT}/hooks/session-start.sh"
+    }
+  ]
+}
