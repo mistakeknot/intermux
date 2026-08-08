@@ -2,6 +2,7 @@ package tmux
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mistakeknot/intermux/internal/activity"
@@ -411,20 +413,37 @@ func processAlive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
-	// Check /proc/<pid>/status
-	_, err := os.Stat(fmt.Sprintf("/proc/%d", pid))
-	return err == nil
+	// Signal 0 probes existence without delivering anything. EPERM still
+	// means the process exists; only ESRCH means it is gone. Unlike the
+	// previous /proc stat, this works on macOS, where /proc doesn't exist
+	// and every pid probed that way looked dead.
+	err := syscall.Kill(pid, 0)
+	if err == nil {
+		return true
+	}
+	return errors.Is(err, syscall.EPERM)
 }
 
 func getCWD(pid int) string {
 	if pid <= 0 {
 		return ""
 	}
-	link, err := os.Readlink(fmt.Sprintf("/proc/%d/cwd", pid))
+	// Linux fast path.
+	if link, err := os.Readlink(fmt.Sprintf("/proc/%d/cwd", pid)); err == nil {
+		return link
+	}
+	// macOS has no /proc; ask lsof for the cwd descriptor. -Fn emits
+	// machine-readable lines where the name field is prefixed with "n".
+	out, err := exec.Command("lsof", "-a", "-p", strconv.Itoa(pid), "-d", "cwd", "-Fn").Output()
 	if err != nil {
 		return ""
 	}
-	return link
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "n") {
+			return strings.TrimSpace(line[1:])
+		}
+	}
+	return ""
 }
 
 // resolveProjectDir walks up from dir to find the git root directory.
