@@ -3,6 +3,7 @@ package tmux
 import (
 	"log/slog"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,6 +11,22 @@ import (
 	"github.com/mistakeknot/intermux/internal/activity"
 	"gopkg.in/yaml.v3"
 )
+
+// bracketSessionRe matches the iTerm/rio launcher convention:
+//
+//	{terminal}[{project}(@{agent})? - {session_uuid}
+//
+// with either "[" or "]" separating terminal from project, e.g.
+//
+//	"iterm[jeddnet@codex - 019f805d-303f-7c43-a79e-7e1893411b25"
+//	"iterm]jawnomicon - d58d5e63-b647-4d68-82f8-64d787310d15"
+//	"rio[clavain - aa2bb078-ee16-4c32-9f97-01ef7dbdec61"
+//
+// The UUID tail is the agent's own session ID; without an @marker the
+// agent is Claude Code, since that launcher only annotates non-default
+// agents (e.g. "@codex").
+var bracketSessionRe = regexp.MustCompile(
+	`^([^\[\]]+)[\[\]](.+?)\s+-\s+([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$`)
 
 // defaultKeywords are the built-in agent type identifiers that appear in session names.
 // Order matters — check compound keywords first ("admin-claude" before "claude").
@@ -102,15 +119,32 @@ func containsKeyword(keywords []string, target string) bool {
 }
 
 // ParseSessionName extracts terminal, project, agent type, and instance number
-// from a tmux session name following the convention:
+// from a tmux session name. Two conventions are recognized:
 //
-//	{terminal}-{project}-{agent}-{optional_number}
+//	{terminal}[{project}(@{agent})? - {session_uuid}   (iTerm/rio launcher; "]" also accepted)
+//	{terminal}-{project}-{agent}-{optional_number}     (legacy fleet convention)
 //
-// The project component can contain hyphens (e.g., "shadow-work", "agent-fortress"),
-// so the parser scans for the rightmost known agent keyword.
+// In the legacy form the project component can contain hyphens (e.g.,
+// "shadow-work", "agent-fortress"), so the parser scans for the rightmost
+// known agent keyword.
 func ParseSessionName(name string) activity.ParsedSessionName {
 	result := activity.ParsedSessionName{
 		Terminal: name, // fallback: whole name is "terminal"
+	}
+
+	if m := bracketSessionRe.FindStringSubmatch(name); m != nil {
+		result.Terminal = strings.TrimSpace(m[1])
+		body := strings.TrimSpace(m[2])
+		result.AgentType = "claude"
+		if at := strings.LastIndex(body, "@"); at >= 0 {
+			if agent := strings.TrimSpace(body[at+1:]); agent != "" {
+				result.AgentType = strings.ToLower(agent)
+				body = strings.TrimSpace(body[:at])
+			}
+		}
+		result.Project = body
+		result.IsAgent = true
+		return result
 	}
 
 	parts := strings.Split(name, "-")

@@ -52,8 +52,22 @@ func TestParseSessionName(t *testing.T) {
 		// Two-word project + claude + number
 		{"wezterm-typhon-claude-2", "wezterm", "typhon", "claude", 2, true},
 
+		// iTerm/rio bracket convention: {terminal}[{project}(@{agent})? - {uuid}
+		{"iterm[jeddnet@codex - 019f805d-303f-7c43-a79e-7e1893411b25", "iterm", "jeddnet", "codex", 0, true},
+		{"iterm[jeddnet -  f44fd423-1cc0-4f6d-8bd1-a793d69facf4", "iterm", "jeddnet", "claude", 0, true},
+		{"iterm]jawnomicon - d58d5e63-b647-4d68-82f8-64d787310d15", "iterm", "jawnomicon", "claude", 0, true},
+		{"iterm]shadow-work-policy - 2aee0821-62fc-4917-837f-e16e55dc64f8", "iterm", "shadow-work-policy", "claude", 0, true},
+		{"iterm[ushas/bridger - ef9ad21a-0965-45cb-b4bf-fda7f5a358b3", "iterm", "ushas/bridger", "claude", 0, true},
+		{"rio[jetty/fissionchips - 228255df-83a7-4fa2-8e19-334a7951d0cd", "rio", "jetty/fissionchips", "claude", 0, true},
+		{"rio]auraken-inkling - 3b67def9-c705-40c0-a758-0fb311d785ee", "rio", "auraken-inkling", "claude", 0, true},
+
+		// Bracket-like names without a UUID tail fall through to legacy parsing
+		{"iterm[scratch - notes", "iterm[scratch ", " notes", "", 0, false},
+
 		// Non-agent sessions
 		{"main", "main", "", "", 0, false},
+		{"kimifork", "kimifork", "", "", 0, false},
+		{"mobile", "mobile", "", "", 0, false},
 
 		// Edge case: terminal-claude-root (claude is the project? or agent?)
 		// With the parser, "root" isn't a known agent type, so "claude-root" becomes project.
