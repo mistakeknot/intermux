@@ -50,6 +50,12 @@ func wrapWithTouch(st server.ServerTool, tracker *idle.Tracker) server.ServerToo
 	return st
 }
 
+// initialScanWait bounds how long list_agents blocks for the watcher's first
+// tmux scan. The scan is a handful of tmux/lsof invocations, so this is
+// generous; on expiry the tool reports an explicit error rather than serving
+// a partial fleet.
+const initialScanWait = 10 * time.Second
+
 func listAgents(store *activity.Store) server.ServerTool {
 	return server.ServerTool{
 		Tool: mcp.NewTool("list_agents",
@@ -62,6 +68,10 @@ func listAgents(store *activity.Store) server.ServerTool {
 			),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if !store.WaitScanComplete(ctx, initialScanWait) {
+				return mcp.NewToolResultError("initial tmux scan has not completed; an agent list now would be partial — retry shortly"), nil
+			}
+
 			args := req.GetArguments()
 			projectFilter, _ := args["project"].(string)
 			agentTypeFilter, _ := args["agent_type"].(string)
