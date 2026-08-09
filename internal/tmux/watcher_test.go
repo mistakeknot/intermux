@@ -1,9 +1,13 @@
 package tmux
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/mistakeknot/intermux/internal/activity"
 )
 
 func TestProcessAlive(t *testing.T) {
@@ -50,5 +54,26 @@ func TestGetCWD(t *testing.T) {
 func TestGetCWDInvalidPid(t *testing.T) {
 	if got := getCWD(0); got != "" {
 		t.Errorf("expected empty cwd for pid 0, got %q", got)
+	}
+}
+
+// Run must mark scan completion even when tmux is unreachable (listSessions
+// errors): zero sessions is a truthful, complete answer. Without the mark,
+// every gated reader would block until its timeout on machines with no tmux.
+func TestRunMarksScanCompleteEvenWithoutTmux(t *testing.T) {
+	// Point tmux at a socket that cannot exist so listSessions fails fast
+	// and deterministically on every platform.
+	old := globalSocketPath
+	SetSocketPath(filepath.Join(t.TempDir(), "no-such-socket"))
+	t.Cleanup(func() { SetSocketPath(old) })
+
+	store := activity.NewStore(10)
+	w := NewWatcher(DefaultConfig(), store)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go w.Run(ctx)
+
+	if !store.WaitScanComplete(context.Background(), 5*time.Second) {
+		t.Fatal("initial scan was never marked complete")
 	}
 }

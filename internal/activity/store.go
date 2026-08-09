@@ -1,6 +1,7 @@
 package activity
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,12 @@ type Store struct {
 	eventHead int // next write position in ring buffer
 	eventFull bool
 	ringSize  int
+
+	// scanDone is closed once the tmux watcher's initial scan has finished.
+	// The store fills incrementally during a scan, so readers that list the
+	// fleet must wait on this to avoid serving a mid-scan partial.
+	scanDone chan struct{}
+	scanOnce sync.Once
 }
 
 // NewStore creates an activity store with the given ring buffer size.
@@ -28,6 +35,33 @@ func NewStore(ringSize int) *Store {
 		agents:   make(map[string]*AgentActivity),
 		events:   make([]ActivityEvent, ringSize),
 		ringSize: ringSize,
+		scanDone: make(chan struct{}),
+	}
+}
+
+// MarkScanComplete records that the initial tmux scan has finished.
+// Idempotent; only the first call has effect.
+func (s *Store) MarkScanComplete() {
+	s.scanOnce.Do(func() { close(s.scanDone) })
+}
+
+// WaitScanComplete blocks until the initial scan completes, the context is
+// done, or the timeout elapses. Returns true only when the scan is complete.
+func (s *Store) WaitScanComplete(ctx context.Context, timeout time.Duration) bool {
+	select {
+	case <-s.scanDone:
+		return true
+	default:
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-s.scanDone:
+		return true
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return false
 	}
 }
 

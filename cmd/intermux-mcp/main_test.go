@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,14 +12,17 @@ func TestLoadMappingsPreservesReportedActiveBeadMetadata(t *testing.T) {
 	store := activity.NewStore(10)
 	store.Update("intermux-test-session", activity.AgentActivity{TmuxSession: "intermux-test-session"})
 
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("intermux-mapping-test-%d.json", os.Getpid()))
-	t.Cleanup(func() { _ = os.Remove(path) })
+	// Hermetic mapping dir: the production path is hardcoded /tmp (matching
+	// hooks/session-start.sh), which os.TempDir() only equals on Linux —
+	// writing there made this test fail on macOS and read real mapping
+	// files on dev machines.
+	dir := t.TempDir()
 	payload := `{"session_id":"test","tmux_session":"intermux-test-session","agent_id":"agent-123","active_bead_id":"sylveste-kgfi.1","active_bead_confidence":"reported"}`
-	if err := os.WriteFile(path, []byte(payload), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "intermux-mapping-test.json"), []byte(payload), 0o600); err != nil {
 		t.Fatalf("write mapping: %v", err)
 	}
 
-	loadMappings(store)
+	loadMappingsFrom(dir, store)
 
 	got := store.Get("intermux-test-session")
 	if got == nil {

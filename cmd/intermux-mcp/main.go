@@ -97,10 +97,22 @@ func main() {
 	}
 }
 
-// loadMappings reads /tmp/intermux-mapping-*.json files to correlate
-// tmux sessions with intermute agent IDs.
+// mappingDir is where hooks/session-start.sh writes correlation files.
+// Deliberately /tmp on every platform, NOT os.TempDir(): the hook hardcodes
+// /tmp, and on macOS os.TempDir() is $TMPDIR (/var/folders/...), a directory
+// the hook never writes to.
+const mappingDir = "/tmp"
+
+// loadMappings reads intermux-mapping-*.json files from mappingDir to
+// correlate tmux sessions with intermute agent IDs.
 func loadMappings(store *activity.Store) {
-	files, err := filepath.Glob("/tmp/intermux-mapping-*.json")
+	loadMappingsFrom(mappingDir, store)
+}
+
+// loadMappingsFrom is the directory-injectable core of loadMappings,
+// split out so tests can run hermetically against t.TempDir().
+func loadMappingsFrom(dir string, store *activity.Store) {
+	files, err := filepath.Glob(filepath.Join(dir, "intermux-mapping-*.json"))
 	if err != nil {
 		return
 	}

@@ -73,8 +73,12 @@ func (w *Watcher) Run(ctx context.Context) {
 	defer activeTicker.Stop()
 	defer idleTicker.Stop()
 
-	// Initial scan
+	// Initial scan. scan() is fully synchronous (every matched session is in
+	// the store by the time it returns), so marking completion here — on the
+	// error path too, where zero sessions is the truth — lets readers gate on
+	// a fleet snapshot that is never a mid-scan partial.
 	w.scan()
+	w.store.MarkScanComplete()
 
 	for {
 		if w.idleTracker != nil && w.idleTracker.IsIdle() {
