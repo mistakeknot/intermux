@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 	"github.com/mistakeknot/intermux/internal/activity"
 )
 
@@ -75,6 +76,69 @@ func TestListAgentsUnblocksWithCompleteFleet(t *testing.T) {
 	agents := resultAgents(t, res)
 	if len(agents) != 2 {
 		t.Fatalf("got %d agents, want the complete fleet of 2: %+v", len(agents), agents)
+	}
+}
+
+// Every fleet-reading tool must refuse while the initial scan is incomplete
+// and serve normally once it is marked. On ungated behavior this fails:
+// the handlers returned data immediately.
+func TestFleetReadersGateOnScanComplete(t *testing.T) {
+	cases := []struct {
+		name string
+		tool func(*activity.Store) server.ServerTool
+		args map[string]any
+	}{
+		{"activity_feed", activityFeed, nil},
+		{"search_output", searchOutput, map[string]any{"pattern": "error"}},
+		{"who_is_editing", whoIsEditing, map[string]any{"pattern": "main.go"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := activity.NewStore(10)
+			store.Update("iterm[demo - 019f8", activity.AgentActivity{TmuxSession: "iterm[demo - 019f8"})
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: tc.args}}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			res, err := tc.tool(store).Handler(ctx, req)
+			if err != nil {
+				t.Fatalf("handler error: %v", err)
+			}
+			if !res.IsError {
+				t.Fatal("expected error while initial scan incomplete, got data (mid-scan partial served)")
+			}
+
+			store.MarkScanComplete()
+			res, err = tc.tool(store).Handler(context.Background(), req)
+			if err != nil {
+				t.Fatalf("handler error after scan complete: %v", err)
+			}
+			if res.IsError {
+				t.Fatalf("expected data after scan complete, got error: %+v", res.Content)
+			}
+		})
+	}
+}
+
+// Argument validation must fail fast even while the gate would block:
+// a malformed request's error is about the request, not scan state.
+func TestArgValidationRunsBeforeGate(t *testing.T) {
+	store := activity.NewStore(10) // scan deliberately never marked complete
+	for name, st := range map[string]server.ServerTool{
+		"search_output":  searchOutput(store),
+		"who_is_editing": whoIsEditing(store),
+	} {
+		start := time.Now()
+		res, err := st.Handler(context.Background(), mcp.CallToolRequest{})
+		if err != nil {
+			t.Fatalf("%s: handler error: %v", name, err)
+		}
+		if !res.IsError {
+			t.Fatalf("%s: expected argument error", name)
+		}
+		if elapsed := time.Since(start); elapsed > time.Second {
+			t.Fatalf("%s: argument error took %v — blocked on the scan gate", name, elapsed)
+		}
 	}
 }
 
