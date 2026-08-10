@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -14,12 +16,13 @@ import (
 	"github.com/mistakeknot/intermux/internal/health"
 	"github.com/mistakeknot/intermux/internal/idle"
 	"github.com/mistakeknot/intermux/internal/tmux"
+	"github.com/mistakeknot/intermux/internal/version"
 )
 
 // RegisterAll registers all intermux MCP tools with the server.
 // If tracker is non-nil, every tool call touches it to keep background
 // goroutines running at normal rates while the server is in active use.
-func RegisterAll(s *server.MCPServer, store *activity.Store, monitor *health.Monitor, tracker *idle.Tracker) {
+func RegisterAll(s *server.MCPServer, store *activity.Store, monitor *health.Monitor, tracker *idle.Tracker, info version.Info) {
 	allTools := []server.ServerTool{
 		listAgents(store),
 		peekAgent(store),
@@ -28,6 +31,7 @@ func RegisterAll(s *server.MCPServer, store *activity.Store, monitor *health.Mon
 		agentHealth(monitor),
 		whoIsEditing(store),
 		sessionInfo(),
+		serverInfo(store, info, time.Now()),
 	}
 
 	if tracker != nil {
@@ -50,11 +54,22 @@ func wrapWithTouch(st server.ServerTool, tracker *idle.Tracker) server.ServerToo
 	return st
 }
 
-// initialScanWait bounds how long list_agents blocks for the watcher's first
+// initialScanWait bounds how long gated readers block for the watcher's first
 // tmux scan. The scan is a handful of tmux/lsof invocations, so this is
 // generous; on expiry the tool reports an explicit error rather than serving
 // a partial fleet.
 const initialScanWait = 10 * time.Second
+
+// gateOnScan returns a non-nil error result while the initial tmux scan is
+// incomplete. Every tool that reads the fleet from the store must call this
+// first: the store fills incrementally during a scan, so an ungated read can
+// serve a partial fleet with nothing marking it as partial.
+func gateOnScan(ctx context.Context, store *activity.Store) *mcp.CallToolResult {
+	if !store.WaitScanComplete(ctx, initialScanWait) {
+		return mcp.NewToolResultError("initial tmux scan has not completed; results now would be partial — retry shortly")
+	}
+	return nil
+}
 
 func listAgents(store *activity.Store) server.ServerTool {
 	return server.ServerTool{
@@ -68,8 +83,8 @@ func listAgents(store *activity.Store) server.ServerTool {
 			),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			if !store.WaitScanComplete(ctx, initialScanWait) {
-				return mcp.NewToolResultError("initial tmux scan has not completed; an agent list now would be partial — retry shortly"), nil
+			if r := gateOnScan(ctx, store); r != nil {
+				return r, nil
 			}
 
 			args := req.GetArguments()
@@ -164,6 +179,10 @@ func activityFeed(store *activity.Store) server.ServerTool {
 			),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if r := gateOnScan(ctx, store); r != nil {
+				return r, nil
+			}
+
 			args := req.GetArguments()
 			minutes := intOr(args["minutes"], 10)
 			session, _ := args["session"].(string)
@@ -193,6 +212,9 @@ func searchOutput(store *activity.Store) server.ServerTool {
 			pattern, _ := args["pattern"].(string)
 			if pattern == "" {
 				return mcp.NewToolResultError("pattern is required"), nil
+			}
+			if r := gateOnScan(ctx, store); r != nil {
+				return r, nil
 			}
 
 			type searchResult struct {
@@ -265,6 +287,9 @@ func whoIsEditing(store *activity.Store) server.ServerTool {
 			if pattern == "" {
 				return mcp.NewToolResultError("pattern is required"), nil
 			}
+			if r := gateOnScan(ctx, store); r != nil {
+				return r, nil
+			}
 
 			type editActivity struct {
 				TmuxSession string   `json:"tmux_session"`
@@ -315,6 +340,25 @@ func sessionInfo() server.ServerTool {
 				sessions = []activity.SessionInfo{}
 			}
 			return jsonResult(sessions)
+		},
+	}
+}
+
+func serverInfo(store *activity.Store, info version.Info, started time.Time) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("server_info",
+			mcp.WithDescription("Version and liveness of this intermux-mcp server process: plugin version resolved from the manifest next to the running binary, executable path, pid, uptime, and whether the initial tmux scan has completed. Use after a publish wave to spot stale running servers. Never blocks on the scan gate."),
+		),
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return jsonResult(map[string]any{
+				"version":       info.Version,
+				"binary":        info.Binary,
+				"manifest":      info.Manifest,
+				"go":            runtime.Version(),
+				"pid":           os.Getpid(),
+				"uptime_s":      int(time.Since(started).Seconds()),
+				"scan_complete": store.ScanComplete(),
+			})
 		},
 	}
 }

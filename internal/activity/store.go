@@ -45,6 +45,18 @@ func (s *Store) MarkScanComplete() {
 	s.scanOnce.Do(func() { close(s.scanDone) })
 }
 
+// ScanComplete reports whether the initial scan has finished, without
+// blocking. Diagnostic surfaces (server_info) use this so they can answer
+// even while gated readers are still waiting.
+func (s *Store) ScanComplete() bool {
+	select {
+	case <-s.scanDone:
+		return true
+	default:
+		return false
+	}
+}
+
 // WaitScanComplete blocks until the initial scan completes, the context is
 // done, or the timeout elapses. Returns true only when the scan is complete.
 func (s *Store) WaitScanComplete(ctx context.Context, timeout time.Duration) bool {

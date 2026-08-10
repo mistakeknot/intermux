@@ -19,9 +19,14 @@ import (
 	"github.com/mistakeknot/intermux/internal/push"
 	"github.com/mistakeknot/intermux/internal/tmux"
 	"github.com/mistakeknot/intermux/internal/tools"
+	"github.com/mistakeknot/intermux/internal/version"
 )
 
 func main() {
+	// Resolve the running artifact's version from the manifest next to the
+	// binary — the truth about what is running, not what was compiled in.
+	info := version.Resolve()
+
 	// Activity store — shared by watcher, tools, health monitor, and pusher
 	store := activity.NewStore(200)
 
@@ -76,11 +81,11 @@ func main() {
 	// MCP server
 	s := server.NewMCPServer(
 		"intermux",
-		"0.1.5",
+		info.Version,
 		server.WithToolCapabilities(true),
 	)
 
-	tools.RegisterAll(s, store, monitor, idleTracker)
+	tools.RegisterAll(s, store, monitor, idleTracker, info)
 
 	// Handle graceful shutdown
 	go func() {
