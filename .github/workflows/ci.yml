@@ -22,3 +22,10 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test -race ./...
+
+      # The fleet sweep is Python, so a Go-only CI would ship it untested while
+      # reporting green. It runs on Linux here and on macOS in practice, and its
+      # process-resolution branch differs between the two — which is precisely
+      # the split that hid the /proc-only bug this repo fixed in 0.1.10.
+      - name: Fleet sweep tests
+        run: python3 scripts/test_fleet_version_skew.py
