@@ -22,6 +22,8 @@ Then install the plugin:
 /plugin install intermux
 ```
 
+Not using Claude Code's plugin system? See [docs/install.md](docs/install.md) for a standalone `go install` + raw MCP config path that works with any client. `intermute` is optional — without it, metadata push is disabled and every MCP tool still works.
+
 ## MCP tools
 
 - **list_agents**: Show all detected agents and their status
