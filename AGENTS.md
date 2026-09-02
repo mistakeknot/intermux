@@ -1,8 +1,7 @@
 # Intermux — Agent Activity Visibility
 
 ## Canonical References
-1. [`PHILOSOPHY.md`](../../PHILOSOPHY.md) — direction for ideation and planning decisions.
-2. `CLAUDE.md` — implementation details, architecture, testing, and release workflow.
+1. `CLAUDE.md` — implementation details, architecture, testing, and release workflow.
 
 ## What This Is
 
@@ -78,7 +77,7 @@ go build -o bin/intermux-mcp ./cmd/intermux-mcp/
 INTERMUTE_URL=http://127.0.0.1:7338 ./bin/intermux-mcp
 
 # Install as plugin
-claude plugins install /root/projects/Interverse/plugins/intermux
+claude plugins install /path/to/intermux
 
 # Validate structure
 python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"

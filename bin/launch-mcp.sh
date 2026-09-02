@@ -10,7 +10,6 @@ BINARY="${SCRIPT_DIR}/intermux-mcp"
 
 for candidate in \
     "$BINARY" \
-    "/home/mk/projects/Sylveste/interverse/intermux/bin/intermux-mcp" \
     "${HOME}/.local/bin/intermux-mcp"
 do
     if [[ -x "$candidate" ]]; then
