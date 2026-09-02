@@ -4,7 +4,7 @@ Status: implemented v0 shim for `sylveste-kgfi.1`.
 
 Alignment: supports intermux's activity-visibility purpose by turning tmux observation into a compact coordination record that other agents can query through existing intermute agent metadata.
 
-Conflict/Risk: presence is observational and may be stale or ambiguous; Beads remains canonical for task state, priority, dependencies, and claim/assignment.
+Conflict/Risk: presence is observational and may be stale or ambiguous; Beads issue IDs ([beads](https://github.com/steveyegge/beads)) remain canonical for task state, priority, dependencies, and claim/assignment.
 
 ## Intermute metadata keys
 
@@ -46,8 +46,8 @@ Intermux publishes these string-valued keys to `PATCH /api/agents/{agent_id}/met
   "tmux_session": "ghostty-sylveste-claude",
   "agent_kind": "claude",
   "project": "sylveste",
-  "repo": "/home/mk/projects/Sylveste",
-  "cwd": "/home/mk/projects/Sylveste/interverse/intermux",
+  "repo": "/home/user/projects/Sylveste",
+  "cwd": "/home/user/projects/Sylveste/interverse/intermux",
   "git_branch": "main",
   "status": "active",
   "active_bead_id": "sylveste-kgfi.1",

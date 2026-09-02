@@ -10,7 +10,7 @@ silently, and the drift is invisible from every surface anyone would think to
 check: `ic publish status` compares version NUMBERS in files, and the plugin
 cache is a directory named for a version rather than hashed on content.
 
-Measured on Clavain 2026-08-11, four days after 0.1.9 shipped and one day after
+Measured on a dev machine 2026-08-11, four days after 0.1.9 shipped and one day after
 0.1.12: 27 servers running, 23 of them still on 0.1.9 — two publishes behind,
 the oldest up 17 days. Every one of those sessions was calling `list_agents` and
 getting pre-fix answers while the repo, the marketplace and the cache all read
@@ -173,7 +173,7 @@ def manifest_for(exe: str) -> tuple[str, str, str, str]:
     # The artifact was deleted while this process kept running it. `ic publish`
     # prunes superseded cache directories, and Unix keeps an executing inode
     # alive after its last link is gone — so the server runs on happily from a
-    # binary that no longer exists at any path. Observed on Clavain 2026-08-11:
+    # binary that no longer exists at any path. Observed on a dev machine 2026-08-11:
     # 23 servers executing a 0.1.9 cache directory that publish had already
     # pruned, their manifests unreadable because the whole tree was gone.
     #
