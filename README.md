@@ -6,7 +6,7 @@ Agent activity visibility for Claude Code via tmux monitoring.
 
 When you have multiple agents running in tmux panes, it's hard to know what each one is doing without switching between them. intermux monitors tmux sessions, detects agent status (active, idle, stuck, crashed), and pushes enriched metadata to intermute so other tools in the ecosystem can see what's happening.
 
-The MCP server provides 7 tools for cross-agent observability: list agents, peek at output, search across sessions, check health, view activity feeds. The monitoring runs on a 10-second tmux scan interval with 30-second metadata pushes to intermute.
+The MCP server provides 8 tools for cross-agent observability: list agents, peek at output, search across sessions, check health, view activity feeds. The monitoring runs on a 10-second tmux scan interval with 30-second metadata pushes to intermute.
 
 ## Installation
 
@@ -31,6 +31,7 @@ Then install the plugin:
 - **activity_feed**: Chronological activity across all agents
 - **session_info**: Tmux session metadata
 - **who_is_editing**: Which agent is editing which files
+- **server_info**: Version and liveness of this intermux-mcp process (manifest version, pid, uptime, scan status)
 
 ## Architecture
 
