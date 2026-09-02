@@ -1,14 +1,8 @@
 """Shared fixtures for structural tests."""
 
-import sys
 from pathlib import Path
 
-# Add interverse/ to path so _shared package is importable
-_interverse = Path(__file__).resolve().parents[3]
-if str(_interverse) not in sys.path:
-    sys.path.insert(0, str(_interverse))
-
-from _shared.tests.structural.conftest_base import create_structural_fixtures
+from _vendored import create_structural_fixtures
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 fixtures = create_structural_fixtures(PROJECT_ROOT)
