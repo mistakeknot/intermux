@@ -30,7 +30,10 @@ func main() {
 	// Activity store — shared by watcher, tools, health monitor, and pusher
 	store := activity.NewStore(200)
 
-	// Load agent correlation mappings from /tmp
+	// Load agent correlation mappings from the per-user mapping directory
+	if err := ensureMappingDir(mappingDir()); err != nil {
+		log.Printf("intermux: mapping dir unavailable, agent correlation disabled: %v", err)
+	}
 	loadMappings(store)
 
 	// Background context with cancellation
@@ -103,25 +106,77 @@ func main() {
 }
 
 // mappingDir is where hooks/session-start.sh writes correlation files.
-// Deliberately /tmp on every platform, NOT os.TempDir(): the hook hardcodes
-// /tmp, and on macOS os.TempDir() is $TMPDIR (/var/folders/...), a directory
-// the hook never writes to.
-const mappingDir = "/tmp"
+// It is a per-user directory, never the shared /tmp: a mapping file tells
+// intermux which agent a tmux session belongs to, so a world-writable
+// location would let any local user plant one and relabel a session.
+// INTERMUX_MAPPING_DIR overrides; otherwise $XDG_STATE_HOME/intermux/mappings,
+// falling back to ~/.local/state/intermux/mappings. The hook computes the
+// same path with the same precedence — keep the two in step.
+func mappingDir() string {
+	if dir := os.Getenv("INTERMUX_MAPPING_DIR"); dir != "" {
+		return dir
+	}
+	base := os.Getenv("XDG_STATE_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil || home == "" {
+			return ""
+		}
+		base = filepath.Join(home, ".local", "state")
+	}
+	return filepath.Join(base, "intermux", "mappings")
+}
+
+// ensureMappingDir creates the mapping directory owner-only (0700), tightening
+// an existing directory's mode if it is wider. The server does this at start
+// so the hook's mkdir is a fallback rather than the only guard.
+func ensureMappingDir(dir string) error {
+	if dir == "" {
+		return fmt.Errorf("mapping dir: no home directory and INTERMUX_MAPPING_DIR unset")
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(dir, 0o700)
+}
 
 // loadMappings reads intermux-mapping-*.json files from mappingDir to
 // correlate tmux sessions with intermute agent IDs.
 func loadMappings(store *activity.Store) {
-	loadMappingsFrom(mappingDir, store)
+	loadMappingsFrom(mappingDir(), store)
+}
+
+// mappingDirTrusted reports whether dir is a directory only its owner can
+// reach. Anything group- or world-accessible is refused outright: the
+// loader would rather correlate nothing than trust a file a stranger could
+// have written.
+func mappingDirTrusted(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	info, err := os.Lstat(dir)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	return info.Mode().Perm()&0o077 == 0
 }
 
 // loadMappingsFrom is the directory-injectable core of loadMappings,
 // split out so tests can run hermetically against t.TempDir().
 func loadMappingsFrom(dir string, store *activity.Store) {
+	if !mappingDirTrusted(dir) {
+		return
+	}
 	files, err := filepath.Glob(filepath.Join(dir, "intermux-mapping-*.json"))
 	if err != nil {
 		return
 	}
 	for _, f := range files {
+		// Regular files only: a symlink planted here would let a mapping
+		// point at content outside the trusted directory.
+		if info, err := os.Lstat(f); err != nil || !info.Mode().IsRegular() {
+			continue
+		}
 		data, err := os.ReadFile(f)
 		if err != nil {
 			continue

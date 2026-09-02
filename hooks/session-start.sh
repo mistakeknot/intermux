@@ -19,6 +19,15 @@ if [[ -n "$ACTIVE_BEAD_ID" ]]; then
   ACTIVE_BEAD_CONFIDENCE="${INTERMUX_ACTIVE_BEAD_CONFIDENCE:-reported}"
 fi
 
+# Per-user, owner-only directory — the same path intermux-mcp resolves
+# (INTERMUX_MAPPING_DIR, else $XDG_STATE_HOME, else ~/.local/state). Never
+# /tmp: a world-writable directory would let any local user plant a mapping
+# and relabel a session as some other agent.
+MAP_DIR="${INTERMUX_MAPPING_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/intermux/mappings}"
+mkdir -p "$MAP_DIR" 2>/dev/null || exit 0
+chmod 700 "$MAP_DIR" 2>/dev/null || true
+umask 077
+
 jq -n \
   --arg sid "$SID" \
   --arg tmux "$TMUX_SESSION" \
@@ -26,6 +35,6 @@ jq -n \
   --arg active_bead_id "$ACTIVE_BEAD_ID" \
   --arg active_bead_confidence "$ACTIVE_BEAD_CONFIDENCE" \
   '{session_id:$sid, tmux_session:$tmux, agent_id:$aid, active_bead_id:$active_bead_id, active_bead_confidence:$active_bead_confidence}' \
-  > "/tmp/intermux-mapping-${SID}.json" 2>/dev/null || true
+  > "$MAP_DIR/intermux-mapping-${SID}.json" 2>/dev/null || true
 
 exit 0

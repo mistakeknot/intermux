@@ -32,7 +32,7 @@ Intermux publishes these string-valued keys to `PATCH /api/agents/{agent_id}/met
 ## Confidence rules
 
 1. Explicit launch/session metadata wins:
-   - SessionStart hook accepts `INTERMUX_ACTIVE_BEAD_ID`, `ACTIVE_BEAD_ID`, or `BEAD_ID` and writes it to `/tmp/intermux-mapping-*.json`.
+   - SessionStart hook accepts `INTERMUX_ACTIVE_BEAD_ID`, `ACTIVE_BEAD_ID`, or `BEAD_ID` and writes it to `intermux-mapping-*.json` in the per-user mapping directory.
    - Mapping ingestion merges it into `agent.Metadata["active_bead_id"]`.
    - confidence defaults to `reported` unless `INTERMUX_ACTIVE_BEAD_CONFIDENCE` / `agent.Metadata["active_bead_confidence"]` is set.
 2. A single Beads-context candidate from pane output becomes `active_bead_id` with confidence `observed`.

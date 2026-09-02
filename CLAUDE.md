@@ -19,5 +19,5 @@ bash -n hooks/*.sh                                   # Validate hook syntax
 - Go MCP server (mark3labs/mcp-go), bash for hooks
 - In-memory activity store with ring buffer (no SQLite)
 - Background goroutines for tmux watching, health monitoring, and intermute push
-- Agent correlation via /tmp/intermux-mapping-*.json files
+- Agent correlation via `intermux-mapping-*.json` files in the per-user mapping directory (`$XDG_STATE_HOME/intermux/mappings`, default `~/.local/state/intermux/mappings`; `INTERMUX_MAPPING_DIR` overrides)
 - 10-second tmux scan interval, 30-second metadata push interval

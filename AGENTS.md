@@ -64,7 +64,7 @@ Claude Code Agents (in tmux sessions)
 - Free heartbeat with every metadata push
 
 ### Agent Correlation
-- SessionStart hook writes `/tmp/intermux-mapping-<session_id>.json`
+- SessionStart hook writes `intermux-mapping-<session_id>.json` into the per-user mapping directory (`INTERMUX_MAPPING_DIR`, else `$XDG_STATE_HOME/intermux/mappings`, else `~/.local/state/intermux/mappings`; created 0700, files 0600). The loader refuses a directory that is group- or world-accessible and skips anything that is not a regular file.
 - Maps `{tmux_session, agent_id}` for the pusher
 - Watcher goroutine checks for new mapping files every 15 seconds
 
@@ -92,5 +92,5 @@ bash -n hooks/*.sh
 | `INTERMUTE_URL` | `http://127.0.0.1:7338` | Intermute API base URL |
 | `INTERMUTE_AGENT_ID` | (none) | Agent ID from interlock registration |
 | `TMUX` | (none) | Set by tmux — used to detect current session |
-| `INTERMUX_ACTIVE_BEAD_ID` / `ACTIVE_BEAD_ID` / `BEAD_ID` | (none) | Optional reported active Beads ID written by SessionStart hook into `/tmp/intermux-mapping-*.json` |
+| `INTERMUX_ACTIVE_BEAD_ID` / `ACTIVE_BEAD_ID` / `BEAD_ID` | (none) | Optional reported active Beads ID written by SessionStart hook into the per-user mapping directory |
 | `INTERMUX_ACTIVE_BEAD_CONFIDENCE` | `reported` when an active bead env var is set | Optional confidence override for launch-reported bead metadata |

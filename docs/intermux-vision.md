@@ -7,7 +7,7 @@
 
 intermux is a persistent Go MCP server that makes agent activity observable. It monitors tmux sessions, classifies agent status (active/idle/stuck/crashed), extracts context (working directory, git branch, active beads, files touched), and pushes live metadata to intermute via sideband. The activity store is in-memory with a ring buffer — lightweight by design, not a database pretending to be a monitor.
 
-Session names encode identity: `{terminal}-{project}-{agent}-{number}` gives intermux enough signal to correlate sessions to agents without requiring agents to self-report. Mapping files at `/tmp/intermux-mapping-*.json` bridge the gap when session names alone aren't enough.
+Session names encode identity: `{terminal}-{project}-{agent}-{number}` gives intermux enough signal to correlate sessions to agents without requiring agents to self-report. Mapping files (`intermux-mapping-*.json` in a per-user state directory) bridge the gap when session names alone aren't enough.
 
 ## Why This Exists
 
@@ -31,7 +31,7 @@ Multi-agent workflows are opaque by default. When five agents are running across
 - Monitor tmux sessions and classify agent status every 10 seconds
 - Parse session names to extract terminal, project, agent type, and instance number
 - Track CWD, git branch, active beads, and recent file touches from pane content
-- Correlate sessions to intermute agent IDs via `/tmp/intermux-mapping-*.json`
+- Correlate sessions to intermute agent IDs via per-user `intermux-mapping-*.json` files
 - Push activity snapshots to intermute every 30 seconds
 - Expose MCP tools for querying live agent state
 
