@@ -1,14 +1,6 @@
 """Tests for plugin structure."""
 
-import sys
-from pathlib import Path
-
-# Add interverse/ to path so _shared package is importable
-_interverse = Path(__file__).resolve().parents[3]
-if str(_interverse) not in sys.path:
-    sys.path.insert(0, str(_interverse))
-
-from _shared.tests.structural.test_base import StructuralTests
+from _vendored import StructuralTests
 
 
 class TestStructure(StructuralTests):
