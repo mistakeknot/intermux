@@ -1,6 +1,6 @@
 # intermux
 
-Agent activity visibility for Claude Code via tmux monitoring.
+Agent activity visibility via tmux monitoring: status, output, and who is editing what, for any MCP client.
 
 ## What this does
 
