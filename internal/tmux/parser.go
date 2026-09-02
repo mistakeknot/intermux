@@ -10,16 +10,6 @@ import (
 const beadIDExpr = `[A-Za-z][A-Za-z0-9_-]*-[A-Za-z0-9]{3,5}(?:\.[0-9]+)*`
 
 var (
-	// Error patterns that suggest the agent is in trouble.
-	errorPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)EACCES|permission denied`),
-		regexp.MustCompile(`(?i)panic:`),
-		regexp.MustCompile(`(?i)SIGKILL|SIGTERM|killed`),
-		regexp.MustCompile(`(?i)out of memory|OOM`),
-		regexp.MustCompile(`(?i)fatal error`),
-		regexp.MustCompile(`(?i)ENOMEM`),
-	}
-
 	// Patterns for file edits (Claude Code output).
 	fileEditPattern = regexp.MustCompile(`(?:Edit|Write|Read)\s+(/[^\s]+)`)
 
@@ -40,16 +30,14 @@ var (
 	// Test activity patterns.
 	testRunPattern = regexp.MustCompile(`(?i)go test|pytest|npm test|PASS|FAIL|--- PASS|--- FAIL`)
 
-	// Claude Code spinner/activity indicators.
-	activeIndicators = []string{
-		"Thinking",
-		"Reading",
-		"Writing",
-		"Editing",
-		"Running",
-		"Searching",
-		"Analyzing",
-	}
+	// activeIndicatorPattern matches a Claude Code spinner/status word at the
+	// start of a line, optionally preceded by whitespace or a spinner glyph.
+	// It is checked only against the pane's most recent line (see
+	// docs/status-detection.md) — matching it against every line in the
+	// trailing window instead let a finished status banner earlier in the
+	// window (e.g. "Running 12 tests") outlive the command that printed it
+	// and read as still-active after the shell had returned to a prompt.
+	activeIndicatorPattern = regexp.MustCompile(`^[\s⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏·✻✽✶✳✢*]*(?:Thinking|Reading|Writing|Editing|Running|Searching|Analyzing)\b`)
 
 	// Prompt patterns that indicate the agent is idle/waiting.
 	promptPatterns = []*regexp.Regexp{
@@ -67,7 +55,6 @@ type ParsedContent struct {
 	FilesTouched []string
 	ActiveBeads  []string
 	Events       []activity.ActivityEvent
-	HasErrors    bool
 }
 
 // ParsePaneContent extracts signals from tmux pane output.
@@ -91,41 +78,20 @@ func ParsePaneContent(content, sessionName string) ParsedContent {
 		result.LastOutput = result.LastOutput[:200]
 	}
 
-	// Check for errors
-	for _, line := range lines {
-		for _, pat := range errorPatterns {
-			if pat.MatchString(line) {
-				result.HasErrors = true
-				break
-			}
-		}
-		if result.HasErrors {
-			break
-		}
-	}
-
-	// Check status from the last few lines
+	// Status is derived from the trailing window (the last 10 lines of the
+	// pane) but only ever tested against its single most recent line: the
+	// spinner or prompt that is on screen right now. See
+	// docs/status-detection.md for the false positive this avoids.
 	tail := lines
 	if len(tail) > 10 {
 		tail = tail[len(tail)-10:]
 	}
+	lastLine := tail[len(tail)-1]
 
-	// Check for active indicators
-	for _, line := range tail {
-		for _, indicator := range activeIndicators {
-			if strings.Contains(line, indicator) {
-				result.Status = activity.StatusActive
-				break
-			}
-		}
-		if result.Status == activity.StatusActive {
-			break
-		}
-	}
-
-	// If not active, check for prompt (idle)
-	if result.Status == activity.StatusUnknown {
-		lastLine := lines[len(lines)-1]
+	switch {
+	case activeIndicatorPattern.MatchString(lastLine):
+		result.Status = activity.StatusActive
+	default:
 		for _, pat := range promptPatterns {
 			if pat.MatchString(lastLine) {
 				result.Status = activity.StatusIdle

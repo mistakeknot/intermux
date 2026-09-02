@@ -1,15 +1,11 @@
 package tmux
 
 import (
-	"log/slog"
-	"os"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/mistakeknot/intermux/internal/activity"
-	"gopkg.in/yaml.v3"
 )
 
 // bracketSessionRe matches the iTerm/rio launcher convention:
@@ -37,86 +33,8 @@ var defaultKeywords = []string{
 	"dev",
 }
 
-// agentKeywords is the active keyword list — starts as defaultKeywords,
-// extended by LoadKeywordsFromRegistry if a registry file is found.
+// agentKeywords is the active keyword list.
 var agentKeywords = append([]string{}, defaultKeywords...)
-
-// registryFile is a minimal representation of fleet-registry.yaml for keyword extraction.
-type registryFile struct {
-	Agents map[string]registryAgent `yaml:"agents"`
-}
-
-type registryAgent struct {
-	Runtime struct {
-		Mode string `yaml:"mode"`
-	} `yaml:"runtime"`
-	Tags []string `yaml:"tags"`
-}
-
-// LoadKeywordsFromRegistry reads agent names from a fleet-registry.yaml file
-// and adds them to the agent keywords list. Only agents with runtime.mode "cli"
-// or tags containing "session" are added. Falls back silently to defaults if
-// the file is missing or malformed.
-func LoadKeywordsFromRegistry(path string) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		slog.Debug("fleet registry not found, using default keywords", "path", path)
-		return
-	}
-
-	var reg registryFile
-	if err := yaml.Unmarshal(data, &reg); err != nil {
-		slog.Warn("fleet registry parse error, using default keywords", "path", path, "err", err)
-		return
-	}
-
-	// Collect agent names that represent interactive sessions.
-	var extra []string
-	for name, agent := range reg.Agents {
-		if agent.Runtime.Mode == "cli" || containsTag(agent.Tags, "session") {
-			// Skip names already in defaults.
-			if !containsKeyword(defaultKeywords, name) {
-				extra = append(extra, name)
-			}
-		}
-	}
-
-	if len(extra) == 0 {
-		return
-	}
-
-	// Sort by segment count descending (compound keywords first), then alphabetically.
-	sort.Slice(extra, func(i, j int) bool {
-		ci := strings.Count(extra[i], "-") + 1
-		cj := strings.Count(extra[j], "-") + 1
-		if ci != cj {
-			return ci > cj
-		}
-		return extra[i] < extra[j]
-	})
-
-	// Prepend extra (compound-first) before defaults for correct scan order.
-	agentKeywords = append(extra, defaultKeywords...)
-	slog.Info("loaded registry keywords", "count", len(extra), "total", len(agentKeywords))
-}
-
-func containsTag(tags []string, target string) bool {
-	for _, t := range tags {
-		if t == target {
-			return true
-		}
-	}
-	return false
-}
-
-func containsKeyword(keywords []string, target string) bool {
-	for _, kw := range keywords {
-		if kw == target {
-			return true
-		}
-	}
-	return false
-}
 
 // ParseSessionName extracts terminal, project, agent type, and instance number
 // from a tmux session name. Two conventions are recognized:
@@ -170,7 +88,6 @@ func ParseSessionName(name string) activity.ParsedSessionName {
 
 	// Scan from the right for a known agent keyword.
 	// We need to handle compound keywords like "admin-claude" (two segments).
-	restStr := strings.Join(rest, "-")
 	for _, kw := range agentKeywords {
 		kwParts := len(strings.Split(kw, "-"))
 		// Check if the last kwParts segments of rest match this keyword
@@ -192,7 +109,6 @@ func ParseSessionName(name string) activity.ParsedSessionName {
 	// This covers sessions like "rio-autarch-dev" where "dev" is in agentKeywords,
 	// but it should already be caught above. For truly unrecognized patterns,
 	// just store what we have.
-	_ = restStr
 	result.Project = strings.Join(rest, "-")
 	return result
 }
