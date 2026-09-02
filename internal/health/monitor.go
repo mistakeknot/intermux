@@ -103,7 +103,7 @@ func (m *Monitor) check() {
 		if time.Since(agent.LastSeen) > m.config.StuckTimeout {
 			if agent.Status == activity.StatusActive {
 				agent.Status = activity.StatusStuck
-				warnings = append(warnings, "no activity for >5 minutes while supposedly active")
+				warnings = append(warnings, fmt.Sprintf("no activity for >%s while supposedly active", m.config.StuckTimeout))
 				m.store.Update(agent.TmuxSession, agent)
 			}
 		}
