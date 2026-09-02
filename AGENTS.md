@@ -27,7 +27,7 @@ Claude Code Agents (in tmux sessions)
 └─────────────────────────────┘
 ```
 
-## MCP Tools (7)
+## MCP Tools (8)
 
 | Tool | Description |
 |------|-------------|
@@ -38,6 +38,7 @@ Claude Code Agents (in tmux sessions)
 | `agent_health` | Health report with warnings for stuck/crashed agents |
 | `who_is_editing` | Check if any agent is editing files matching a pattern |
 | `session_info` | Raw tmux session info |
+| `server_info` | This process's version, pid, uptime, and scan status — read from the manifest next to the running binary |
 
 ## Key Components
 
