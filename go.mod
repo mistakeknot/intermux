@@ -2,10 +2,7 @@ module github.com/mistakeknot/intermux
 
 go 1.23.0
 
-require (
-	github.com/mark3labs/mcp-go v0.46.0
-	gopkg.in/yaml.v3 v3.0.1
-)
+require github.com/mark3labs/mcp-go v0.46.0
 
 require (
 	github.com/google/jsonschema-go v0.4.2 // indirect
